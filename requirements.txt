@@ -1,0 +1,7 @@
+# FACTS Incidental Billing — Validation Pipeline
+# Python 3.9+
+#
+# Verified against pandas 3.0.2; the code uses no APIs newer than 1.x, so any
+# reasonably current release should work.
+
+pandas>=1.5

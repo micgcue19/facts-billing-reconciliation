@@ -1,0 +1,31 @@
+ref_id,table,issue_type,severity,disposition,detail,action
+FAM-0074,families,duplicate_family,high,billed (auto-corrected),Family listed more than once in roster.,Removed duplicate roster row.
+CHG-000002,charges,duplicate_charge,high,billed (auto-corrected),Identical charge_id billed more than once.,Dropped extra copy; kept one.
+CHG-000023,charges,duplicate_charge,high,billed (auto-corrected),Identical charge_id billed more than once.,Dropped extra copy; kept one.
+CHG-000008,charges,miscoded_fee,medium,held (needs office),Code 'MISC99' is not in the fee schedule.,Excluded; office to assign valid code.
+CHG-000021,charges,bad_amount,high,held (needs office),Non-positive amount -25.00.,Excluded; cannot bill <= $0.
+CHG-000026,charges,miscoded_fee,medium,held (needs office),Code 'MISC99' is not in the fee schedule.,Excluded; office to assign valid code.
+CHG-000053,charges,missing_amount,medium,held (needs office),Amount is blank.,Excluded; office to supply amount.
+CHG-000061,charges,bad_date_format,low,billed (auto-corrected),Date arrived as '3-5-26'.,Normalized to 2026-03-05.
+CHG-000118,charges,bad_date_format,low,billed (auto-corrected),Date arrived as '03/14/2026'.,Normalized to 2026-03-14.
+CHG-000123,charges,messy_text,low,billed (auto-corrected),Name arrived as '  HARPER PEREZ '.,Standardized to 'Harper Perez'.
+CHG-000128,charges,currency_format,low,billed (auto-corrected),Amount arrived as '$187.00'.,Stripped '$' and parsed.
+CHG-000131,charges,missing_amount,medium,held (needs office),Amount is blank.,Excluded; office to supply amount.
+CHG-000132,charges,miscoded_fee,medium,held (needs office),Code 'LUNCH' but description 'Athletics Fee'.,Excluded; code/description mismatch.
+CHG-000132,charges,bad_amount,high,held (needs office),16.50 is outside the LUNCH range $40-$90.,Excluded as likely entry error.
+CHG-000165,charges,currency_format,low,billed (auto-corrected),Amount arrived as '$186.75'.,Stripped '$' and parsed.
+CHG-000225,charges,messy_text,low,billed (auto-corrected),Name arrived as '  MIA ROBERTS '.,Standardized to 'Mia Roberts'.
+CHG-000263,charges,bad_date_format,low,held (needs office),Date '2026-13-05' is invalid.,Excluded; office to correct date.
+CHG-000294,charges,missing_amount,medium,held (needs office),Amount is blank.,Excluded; office to supply amount.
+CHG-000295,charges,bad_amount,high,held (needs office),Non-positive amount 0.00.,Excluded; cannot bill <= $0.
+CHG-000349,charges,bad_date_format,low,billed (auto-corrected),Date arrived as '03/05/2026'.,Normalized to 2026-03-05.
+CHG-000350,charges,messy_text,low,billed (auto-corrected),Name arrived as '  PENELOPE BAILEY '.,Standardized to 'Penelope Bailey'.
+CHG-000374,charges,bad_date_format,low,billed (auto-corrected),"Date arrived as 'March 5, 2026'.",Normalized to 2026-03-05.
+CHG-000379,charges,bad_amount,high,held (needs office),4500.00 is outside the ATHLETIC range $50-$150.,Excluded as likely entry error.
+CHG-000383,charges,bad_date_format,low,billed (auto-corrected),Date arrived as 'Mar 22 2026'.,Normalized to 2026-03-22.
+CHG-000396,charges,missing_amount,medium,held (needs office),Amount is blank.,Excluded; office to supply amount.
+CHG-000398,charges,messy_text,low,billed (auto-corrected),Name arrived as '  ELLA ANDERSON '.,Standardized to 'Ella Anderson'.
+CHG-W00000,charges,withdrawn_student_charge,high,held (needs office),family_id FAM-0129 is Withdrawn.,Excluded; do not bill inactive family.
+CHG-W00001,charges,withdrawn_student_charge,high,held (needs office),family_id FAM-0129 is Withdrawn.,Excluded; do not bill inactive family.
+CHG-O00000,charges,orphan_charge,high,held (needs office),family_id FAM-9000 is not on the roster.,Excluded from billing.
+CHG-O00001,charges,orphan_charge,high,held (needs office),family_id FAM-9001 is not on the roster.,Excluded from billing.

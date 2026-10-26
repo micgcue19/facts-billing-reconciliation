@@ -1,0 +1,28 @@
+table,ref_id,issue_type,severity,description,expected_fix
+charges,CHG-000131,missing_amount,medium,Amount is blank.,Flag for the office to supply the amount; do not bill.
+charges,CHG-000396,missing_amount,medium,Amount is blank.,Flag for the office to supply the amount; do not bill.
+charges,CHG-000053,missing_amount,medium,Amount is blank.,Flag for the office to supply the amount; do not bill.
+charges,CHG-000294,missing_amount,medium,Amount is blank.,Flag for the office to supply the amount; do not bill.
+charges,CHG-000349,bad_date_format,low,Non-standard date string: '03/05/2026'.,Normalize to ISO; reject impossible dates.
+charges,CHG-000374,bad_date_format,low,"Non-standard date string: 'March 5, 2026'.",Normalize to ISO; reject impossible dates.
+charges,CHG-000061,bad_date_format,low,Non-standard date string: '3-5-26'.,Normalize to ISO; reject impossible dates.
+charges,CHG-000118,bad_date_format,low,Non-standard date string: '03/14/2026'.,Normalize to ISO; reject impossible dates.
+charges,CHG-000383,bad_date_format,low,Non-standard date string: 'Mar 22 2026'.,Normalize to ISO; reject impossible dates.
+charges,CHG-000263,bad_date_format,high,Non-standard date string: '2026-13-05'.,Normalize to ISO; reject impossible dates.
+families,FAM-0074,duplicate_family,high,Family appears more than once in the roster.,De-duplicate on family_id.
+charges,CHG-000002,duplicate_charge,high,Identical charge_id appears twice -- family billed double.,Drop exact duplicates on charge_id.
+charges,CHG-000023,duplicate_charge,high,Identical charge_id appears twice -- family billed double.,Drop exact duplicates on charge_id.
+charges,CHG-000008,miscoded_fee,medium,Charge code 'MISC99' is not in the fee schedule.,Reject unknown codes; route to office for correct code.
+charges,CHG-000132,miscoded_fee,medium,Code 'LUNCH' does not match description 'Athletics Fee'.,Flag code/description mismatch for review.
+charges,CHG-000026,miscoded_fee,medium,Charge code 'MISC99' is not in the fee schedule.,Reject unknown codes; route to office for correct code.
+charges,CHG-W00000,withdrawn_student_charge,high,Charge for a student in withdrawn family FAM-0129.,Suppress charges for non-active families.
+charges,CHG-W00001,withdrawn_student_charge,high,Charge for a student in withdrawn family FAM-0129.,Suppress charges for non-active families.
+charges,CHG-O00000,orphan_charge,high,Charge references a family_id that isn't on the roster.,Reject; cannot bill an unknown family.
+charges,CHG-O00001,orphan_charge,high,Charge references a family_id that isn't on the roster.,Reject; cannot bill an unknown family.
+charges,CHG-000021,bad_amount,high,Implausible amount '-25.00'.,Flag negatives/zeros and outliers outside the fee range.
+charges,CHG-000295,bad_amount,high,Implausible amount '0.00'.,Flag negatives/zeros and outliers outside the fee range.
+charges,CHG-000379,bad_amount,high,Implausible amount '4500.00'.,Flag negatives/zeros and outliers outside the fee range.
+charges,CHG-000398,messy_text,low,Student name has stray whitespace / inconsistent casing.,Trim and standardize casing before matching.
+charges,CHG-000350,messy_text,low,Student name has stray whitespace / inconsistent casing.,Trim and standardize casing before matching.
+charges,CHG-000225,messy_text,low,Student name has stray whitespace / inconsistent casing.,Trim and standardize casing before matching.
+charges,CHG-000123,messy_text,low,Student name has stray whitespace / inconsistent casing.,Trim and standardize casing before matching.

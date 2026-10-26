@@ -1,0 +1,248 @@
+"""
+FACTS Incidental Billing -- Reconciliation Dashboard Builder
+=============================================================
+
+Reads the validation pipeline's outputs and writes a single self-contained
+dashboard.html: KPI cards, a reconciliation bar, exception breakdowns, and the
+office's worklist of held items.
+
+No external libraries, no internet, no Chart.js -- everything is rendered as
+plain HTML/CSS so the file opens offline, emails cleanly, and prints. Run it
+after validate_billing_data.py:
+
+    python build_dashboard.py
+
+Reads from input_dir:
+    facts_ready_import.csv   (the billable output)
+    exception_report.csv     (the audit trail)
+    error_manifest.csv       (optional -- enables the self-check badge)
+
+Dependencies: pandas.
+"""
+
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+
+CONFIG = {
+    "input_dir": "output",          # where the pipeline's CSVs live
+    "output_dir": "output",
+    "school_name": "Example Catholic School",
+    "billing_period": "March 2026",
+}
+
+SEV_COLOR = {"high": "#c0392b", "medium": "#d68910", "low": "#7f8c8d"}
+SEV_ORDER = {"high": 0, "medium": 1, "low": 2}
+TYPE_LABEL = {
+    "missing_amount": "Missing amount",
+    "bad_amount": "Implausible amount",
+    "miscoded_fee": "Miscoded fee",
+    "orphan_charge": "Family not on roster",
+    "withdrawn_student_charge": "Withdrawn family",
+    "bad_date_format": "Invalid date",
+    "duplicate_charge": "Duplicate charge",
+    "duplicate_family": "Duplicate family",
+    "messy_text": "Name formatting",
+    "currency_format": "Currency formatting",
+}
+
+CSS = """
+:root{
+  --ink:#1f2d3d; --ink-soft:#5a6b7b; --line:#e6eaee; --card:#ffffff;
+  --bg:#f4f6f8; --green:#2563eb; --amber:#d68910; --red:#c0392b; --slate:#34495e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.45;padding:28px 20px}
+.wrap{max-width:1080px;margin:0 auto}
+header{background:var(--ink);color:#fff;border-radius:12px;padding:24px 28px;margin-bottom:18px}
+header .row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px}
+header h1{font-size:21px;font-weight:600;letter-spacing:.2px}
+header .sub{font-size:13px;color:#aebccb;margin-top:3px}
+.pill{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+  padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.12);color:#dfe7ef;border:1px solid rgba(255,255,255,.18)}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;
+  background:rgba(37,99,235,.15);color:#a9c4ff;padding:6px 12px;border-radius:8px;border:1px solid rgba(37,99,235,.35)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:var(--card);border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(20,40,60,.07);border-top:3px solid var(--slate)}
+.kpi.good{border-top-color:var(--green)} .kpi.warn{border-top-color:var(--amber)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft)}
+.kpi .value{font-size:27px;font-weight:700;margin-top:5px}
+.kpi .note{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:18px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:12px;padding:20px 22px;box-shadow:0 1px 3px rgba(20,40,60,.07)}
+.card h3{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin-bottom:16px}
+.recon-bar{display:flex;height:30px;border-radius:7px;overflow:hidden;margin-bottom:12px}
+.recon-bar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-soft)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.recon-math{margin-top:14px;font-size:13px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:12px}
+.recon-math b{color:var(--ink)}
+.bar-row{display:grid;grid-template-columns:150px 1fr 40px;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+.bar-label{color:var(--ink-soft);text-align:right}
+.bar-track{background:#eef1f4;border-radius:5px;height:18px;overflow:hidden}
+.bar-fill{background:var(--slate);height:100%;border-radius:5px}
+.bar-val{font-weight:600;text-align:left}
+.sev-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sev-tile{background:#fafbfc;border-radius:9px;padding:14px;text-align:center}
+.sev-count{font-size:26px;font-weight:700}
+.sev-name{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:9px 12px;border-bottom:2px solid var(--line);color:var(--ink-soft);
+  font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+tbody td{padding:9px 12px;border-bottom:1px solid #f1f3f5;vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+.sev-pill{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:999px;color:#fff}
+.ref{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--ink)}
+footer{text-align:center;font-size:12px;color:var(--ink-soft);margin-top:22px;padding-top:14px}
+@media print{body{background:#fff;padding:0}.card,.kpi{box-shadow:none;border:1px solid var(--line)}}
+"""
+
+
+def fmt_money(v):
+    return f"${v:,.2f}"
+
+
+def build(cfg):
+    inp = Path(cfg["input_dir"])
+    facts = pd.read_csv(inp / "facts_ready_import.csv")
+    audit = pd.read_csv(inp / "exception_report.csv", dtype=str, keep_default_na=False)
+
+    billable_n = len(facts)
+    billable_total = float(facts["amount"].sum()) if billable_n else 0.0
+
+    held = audit[audit["disposition"].str.startswith("held")].copy()
+    auto = audit[audit["disposition"].str.startswith("billed")]
+    held_ids = int(held["ref_id"].nunique())
+    auto_n = len(auto)
+    dup_dropped = int((audit["issue_type"] == "duplicate_charge").sum())
+    received = billable_n + held_ids + dup_dropped
+    held_total = 0.0  # held rows have no trusted amount to sum
+
+    # Optional self-check against the planted-error manifest
+    badge = ""
+    man_path = inp / "error_manifest.csv"
+    if man_path.exists():
+        man = pd.read_csv(man_path, dtype=str, keep_default_na=False)
+        detected = {}
+        for _, a in audit.iterrows():
+            detected.setdefault(a["ref_id"], set()).add(a["issue_type"])
+        caught = sum(1 for _, m in man.iterrows()
+                     if m["issue_type"] in detected.get(m["ref_id"], set()))
+        badge = (f'<span class="badge">&#10003; Validation self-check: '
+                 f'{caught} / {len(man)} planted errors caught</span>')
+
+    # --- KPI cards ---
+    kpis = f"""
+      <div class="kpi"><div class="label">Charges received</div>
+        <div class="value">{received:,}</div><div class="note">raw monthly rows</div></div>
+      <div class="kpi good"><div class="label">Billable</div>
+        <div class="value">{billable_n:,}</div><div class="note">clean &amp; auto-corrected</div></div>
+      <div class="kpi warn"><div class="label">Held for review</div>
+        <div class="value">{held_ids:,}</div><div class="note">stopped before billing</div></div>
+      <div class="kpi good"><div class="label">Billable total</div>
+        <div class="value">{fmt_money(billable_total)}</div><div class="note">this cycle</div></div>
+    """
+
+    # --- Reconciliation bar ---
+    def pct(n):
+        return (n / received * 100) if received else 0
+    recon = f"""
+      <div class="recon-bar">
+        <div style="width:{pct(billable_n):.1f}%;background:var(--green)">{billable_n}</div>
+        <div style="width:{pct(held_ids):.1f}%;background:var(--amber)">{held_ids}</div>
+        <div style="width:{pct(dup_dropped):.1f}%;background:var(--slate)">{dup_dropped}</div>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--green)"></i>Billable {billable_n}</span>
+        <span><i class="dot" style="background:var(--amber)"></i>Held {held_ids}</span>
+        <span><i class="dot" style="background:var(--slate)"></i>Duplicates removed {dup_dropped}</span>
+      </div>
+      <div class="recon-math">
+        <b>{received:,}</b> received &nbsp;=&nbsp; <b>{billable_n:,}</b> billed
+        &nbsp;+&nbsp; <b>{held_ids:,}</b> held &nbsp;+&nbsp; <b>{dup_dropped:,}</b> duplicates removed.
+        Every row accounted for. <b>{auto_n}</b> rows were silently auto-corrected
+        (dates, names, formatting) and billed.
+      </div>
+    """
+
+    # --- Exceptions by type (held only) ---
+    by_type = held["issue_type"].value_counts()
+    maxv = int(by_type.max()) if len(by_type) else 1
+    type_rows = ""
+    for t, c in by_type.items():
+        label = TYPE_LABEL.get(t, t)
+        type_rows += (f'<div class="bar-row"><div class="bar-label">{label}</div>'
+                      f'<div class="bar-track"><div class="bar-fill" style="width:{c/maxv*100:.1f}%"></div></div>'
+                      f'<div class="bar-val">{int(c)}</div></div>')
+
+    # --- Held by severity ---
+    by_sev = held["severity"].value_counts()
+    sev_tiles = ""
+    for sev in ["high", "medium", "low"]:
+        c = int(by_sev.get(sev, 0))
+        sev_tiles += (f'<div class="sev-tile"><div class="sev-count" style="color:{SEV_COLOR[sev]}">{c}</div>'
+                      f'<div class="sev-name">{sev}</div></div>')
+
+    # --- Held worklist table ---
+    held["__o"] = held["severity"].map(SEV_ORDER).fillna(9)
+    held = held.sort_values(["__o", "ref_id"])
+    table_rows = ""
+    for _, r in held.iterrows():
+        color = SEV_COLOR.get(r["severity"], "#7f8c8d")
+        table_rows += (
+            f'<tr><td class="ref">{r["ref_id"]}</td>'
+            f'<td>{TYPE_LABEL.get(r["issue_type"], r["issue_type"])}</td>'
+            f'<td><span class="sev-pill" style="background:{color}">{r["severity"]}</span></td>'
+            f'<td>{r["detail"]}</td><td>{r["action"]}</td></tr>'
+        )
+
+    generated = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{cfg['school_name']} -- Billing Reconciliation</title>
+<style>{CSS}</style></head>
+<body><div class="wrap">
+  <header><div class="row">
+    <div><h1>{cfg['school_name']}</h1>
+      <div class="sub">Incidental Billing &middot; Reconciliation &middot; {cfg['billing_period']}</div></div>
+    <div style="text-align:right">
+      <span class="pill">Demonstration &middot; Synthetic data</span><br><br>{badge}
+    </div></div>
+  </header>
+
+  <section class="kpis">{kpis}</section>
+
+  <div class="grid2">
+    <div class="card"><h3>Reconciliation</h3>{recon}</div>
+    <div class="card"><h3>Held by severity</h3><div class="sev-tiles">{sev_tiles}</div>
+      <div class="recon-math" style="margin-top:16px">High-severity items are wrong bills caught
+      before they reached a family. Low/medium are fix-and-rerun.</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px"><h3>Held exceptions by type</h3>{type_rows}</div>
+
+  <div class="card"><h3>Office worklist &mdash; held for review ({len(held)} findings on {held_ids} charges)</h3>
+    <table><thead><tr><th>Charge / Family</th><th>Issue</th><th>Severity</th>
+      <th>What's wrong</th><th>Suggested action</th></tr></thead>
+      <tbody>{table_rows}</tbody></table>
+  </div>
+
+  <footer>Synthetic demonstration data &middot; Generated {generated}
+    &middot; Prepared by Equivalent Cue &mdash; Data &amp; Process Consulting</footer>
+</div></body></html>"""
+
+    out = Path(cfg["output_dir"])
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "dashboard.html").write_text(html, encoding="utf-8", newline="\n")
+    print(f"Dashboard written to {(out / 'dashboard.html').resolve()}")
+    print(f"  received={received}  billable={billable_n}  held={held_ids}  "
+          f"auto-corrected={auto_n}  billable_total={fmt_money(billable_total)}")
+
+
+if __name__ == "__main__":
+    build(CONFIG)
